@@ -1,0 +1,78 @@
+name: Build and Release Extension
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Get version from manifest
+      id: version
+      run: |
+        VERSION=$(grep '"version"' manifest.json | cut -d'"' -f4)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extension version: $VERSION"
+        
+    - name: Build extension
+      run: |
+        mkdir -p temp-build
+        mkdir -p builds
+        
+        # Copy extension files
+        cp manifest.json temp-build/
+        cp content.js temp-build/
+        cp background.js temp-build/
+        
+        # Copy icons if they exist
+        [ -f icon16.png ] && cp icon16.png temp-build/
+        [ -f icon48.png ] && cp icon48.png temp-build/
+        [ -f icon128.png ] && cp icon128.png temp-build/
+        
+        # Create zip file in builds directory
+        cd temp-build
+        zip -r ../builds/safeway-coupon-clipper-v${{ steps.version.outputs.version }}.zip .
+        cd ..
+        
+        # Clean up temp directory
+        rm -rf temp-build
+        
+        echo "Build complete!"
+        ls -la builds/
+        
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-build
+        path: "builds/*.zip"
+        
+    - name: Create GitHub Release
+      if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Release v${{ steps.version.outputs.version }}
+        body: |
+          ## Safeway Coupon Clipper Extension v${{ steps.version.outputs.version }}
+          
+          Automatically clips available Safeway digital coupons.
+          
+          ## Installation
+          1. Download the zip file below
+          2. Extract it to a folder
+          3. Open Chrome and go to chrome://extensions/
+          4. Enable "Developer mode" in the top right
+          5. Click "Load unpacked" and select the extracted folder
+          
+        files: |
+          builds/*.zip
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

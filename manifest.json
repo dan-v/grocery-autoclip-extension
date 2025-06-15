@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Safeway Coupon Clipper",
+  "version": "1.0.0",
+  "description": "Automatically clip all available Safeway coupons",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://*.safeway.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.safeway.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
