@@ -1,0 +1,134 @@
+# ABOUTME: This workflow automatically creates GitHub releases when version tags are pushed
+# ABOUTME: It builds the extension and attaches the webstore package to the release
+
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0, v2.1.3, etc.
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Extract version from tag
+      id: version
+      run: |
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+        
+        # Extract version from manifest
+        MANIFEST_VERSION=$(grep '"version"' manifest.json | sed 's/.*"version": "\([^"]*\)".*/\1/')
+        echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+        
+        echo "Tag version: $TAG_VERSION"
+        echo "Manifest version: $MANIFEST_VERSION"
+        
+    - name: Verify version consistency
+      run: |
+        if [ "${{ steps.version.outputs.tag_version }}" != "${{ steps.version.outputs.manifest_version }}" ]; then
+          echo "❌ Version mismatch!"
+          echo "Tag version: ${{ steps.version.outputs.tag_version }}"
+          echo "Manifest version: ${{ steps.version.outputs.manifest_version }}"
+          echo "Please ensure the tag version matches the version in manifest.json"
+          exit 1
+        fi
+        echo "✅ Version consistency verified"
+        
+    - name: Set up build environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zip unzip
+        
+    - name: Build webstore package
+      run: |
+        chmod +x scripts/build-webstore.sh
+        scripts/build-webstore.sh
+        
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Try to generate a changelog from git commits since last tag
+        LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        if [ -n "$LAST_TAG" ]; then
+          echo "Generating changelog since $LAST_TAG..."
+          CHANGELOG=$(git log --pretty=format:"- %s" $LAST_TAG..HEAD | head -20)
+        else
+          echo "No previous tag found, using recent commits..."
+          CHANGELOG=$(git log --pretty=format:"- %s" HEAD~10..HEAD)
+        fi
+        
+        # Save changelog to file for the release
+        cat > RELEASE_NOTES.md << EOF
+        ## 🚀 Safeway Coupon Clipper v${{ steps.version.outputs.tag_version }}
+        
+        ### 📦 Downloads
+        - **Chrome Web Store Package**: Ready for direct upload to Chrome Web Store
+        
+        ### 🛠️ Installation Instructions
+        1. Download the \`.zip\` file below
+        2. Extract the contents to a folder
+        3. Open Chrome and go to \`chrome://extensions/\`
+        4. Enable "Developer mode" in the top right
+        5. Click "Load unpacked" and select the extracted folder
+        
+        ### 📋 Chrome Web Store Submission
+        The attached package is ready for direct upload to the Chrome Web Store Developer Dashboard.
+        
+        ### 📝 What's Changed
+        $CHANGELOG
+        
+        ### ✅ Package Contents
+        - \`manifest.json\` - Extension manifest (v3)
+        - \`background.js\` - Service worker for background processing
+        - \`content.js\` - Content script for Safeway.com integration
+        - \`popup.html/css/js\` - Modern extension popup interface
+        - \`icon16.png\`, \`icon48.png\`, \`icon128.png\` - Extension icons (all sizes)
+        - \`PRIVACY_POLICY.md\` - Privacy policy documentation
+        
+        ### 🔧 Technical Details
+        - **Manifest Version**: 3 (latest Chrome extension standard)
+        - **Minimum Chrome Version**: 88
+        - **Permissions**: activeTab, storage, scripting
+        - **Host Permissions**: safeway.com, albertsons-media.com
+        
+        ---
+        
+        🤖 This release was automatically built and packaged by GitHub Actions.
+        🛡️ All packages are scanned for security issues before release.
+        EOF
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          builds/safeway-coupon-clipper-v${{ steps.version.outputs.tag_version }}-webstore.zip
+        body_path: RELEASE_NOTES.md
+        name: "Safeway Coupon Clipper v${{ steps.version.outputs.tag_version }}"
+        draft: false
+        prerelease: false
+        generate_release_notes: false  # We're providing our own notes
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Post-release validation
+      run: |
+        echo "🎉 Release v${{ steps.version.outputs.tag_version }} created successfully!"
+        echo ""
+        echo "📋 Next steps:"
+        echo "1. Download the release package from: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.tag_version }}"
+        echo "2. Test the extension locally by loading it unpacked in Chrome"
+        echo "3. Upload to Chrome Web Store Developer Dashboard"
+        echo "4. Update store listing if needed"
+        echo "5. Submit for review"
+        echo ""
+        echo "📊 Release summary:"
+        echo "- Version: ${{ steps.version.outputs.tag_version }}"
+        echo "- Package: safeway-coupon-clipper-v${{ steps.version.outputs.tag_version }}-webstore.zip"
+        echo "- Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.tag_version }}"

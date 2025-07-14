@@ -1,0 +1,212 @@
+# ABOUTME: This workflow builds the Chrome extension for webstore submission on pushes and releases
+# ABOUTME: It creates artifacts and optionally creates GitHub releases with the built package
+
+name: Build Chrome Extension
+
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - 'SafewayCouponsApp/**'
+      - 'webapp-version/**'
+  pull_request:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+      - 'SafewayCouponsApp/**'
+      - 'webapp-version/**'
+  release:
+    types: [ published ]
+
+env:
+  EXTENSION_NAME: grocery-autoclip
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Set up build environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zip unzip
+
+    - name: Extract version from manifest
+      id: version
+      run: |
+        VERSION=$(grep '"version"' manifest.json | sed 's/.*"version": "\([^"]*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Validate manifest structure
+      run: |
+        # Basic JSON validation
+        if ! python3 -m json.tool manifest.json > /dev/null; then
+          echo "❌ Invalid JSON in manifest.json"
+          exit 1
+        fi
+
+        # Check required files exist (after build)
+        for file in dist/background.js dist/content.js dist/popup.js popup.html popup.css icon16.png icon48.png icon128.png PRIVACY_POLICY.md; do
+          if [ ! -f "$file" ]; then
+            echo "❌ Required file missing: $file"
+            exit 1
+          fi
+        done
+
+        echo "✅ All required files present"
+
+    - name: Run TypeScript build
+      run: npm run build
+
+    - name: Run quality checks
+      run: npm run quality-check
+
+    - name: Build webstore package
+      run: |
+        chmod +x scripts/build-webstore.sh
+        scripts/build-webstore.sh
+
+    - name: Verify build output
+      run: |
+        BUILD_FILE="builds/${EXTENSION_NAME}-v${{ steps.version.outputs.version }}-webstore.zip"
+        if [ ! -f "$BUILD_FILE" ]; then
+          echo "❌ Build file not found: $BUILD_FILE"
+          exit 1
+        fi
+
+        # Check minimum file size (should be at least 10KB for a real extension)
+        SIZE=$(stat -f%z "$BUILD_FILE" 2>/dev/null || stat -c%s "$BUILD_FILE")
+        if [ $SIZE -lt 10240 ]; then
+          echo "❌ Build file too small ($SIZE bytes), possibly corrupted"
+          exit 1
+        fi
+
+        echo "✅ Build verification passed"
+        echo "📦 Package size: $(ls -lh "$BUILD_FILE" | awk '{print $5}')"
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: chrome-extension-webstore-v${{ steps.version.outputs.version }}
+        path: builds/${{ env.EXTENSION_NAME }}-v${{ steps.version.outputs.version }}-webstore.zip
+        retention-days: 90
+
+    - name: Upload build artifact (development)
+      if: github.event_name != 'release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: chrome-extension-dev-build
+        path: builds/${{ env.EXTENSION_NAME }}-v${{ steps.version.outputs.version }}-webstore.zip
+        retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Extract version from manifest
+      id: version
+      run: |
+        VERSION=$(grep '"version"' manifest.json | sed 's/.*"version": "\([^"]*\)".*/\1/')
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: chrome-extension-webstore-v${{ steps.version.outputs.version }}
+        path: ./release-assets/
+
+    - name: Attach extension to release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          release-assets/${{ env.EXTENSION_NAME }}-v${{ steps.version.outputs.version }}-webstore.zip
+        body: |
+          ## 🚀 Chrome Extension Release v${{ steps.version.outputs.version }}
+
+          ### 📦 Downloads
+          - **Chrome Web Store Package**: `${{ env.EXTENSION_NAME }}-v${{ steps.version.outputs.version }}-webstore.zip`
+
+          ### 🛠️ Installation Instructions
+          1. Download the `.zip` file above
+          2. Extract the contents to a folder
+          3. Open Chrome and go to `chrome://extensions/`
+          4. Enable "Developer mode" in the top right
+          5. Click "Load unpacked" and select the extracted folder
+
+          ### 📋 Chrome Web Store Submission
+          The attached `.zip` file is ready for direct upload to the Chrome Web Store Developer Dashboard.
+
+          ### ✅ Included Files
+          - `manifest.json` - Extension manifest (v3)
+          - `background.js` - Service worker
+          - `content.js` - Content script for Safeway.com
+          - `popup.html/css/js` - Extension popup interface
+          - `icon16.png`, `icon48.png`, `icon128.png` - Extension icons
+          - `PRIVACY_POLICY.md` - Privacy policy documentation
+
+          ---
+
+          🤖 This release was automatically built and packaged by GitHub Actions.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  security-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build TypeScript
+      run: npm run build
+
+    - name: Basic security scan
+      run: |
+        echo "🔍 Running basic security checks..."
+
+        # Check for suspicious patterns in TypeScript/JavaScript files
+        if grep -r "eval\|innerHTML\|document.write\|setTimeout.*string\|setInterval.*string" --include="*.ts" --include="*.js" src/ dist/ .; then
+          echo "⚠️  Potentially unsafe JavaScript/TypeScript patterns detected"
+          echo "Please review the flagged code for security issues"
+        else
+          echo "✅ No obvious JavaScript/TypeScript security issues found"
+        fi
+
+        # Check manifest permissions
+        echo "📋 Manifest permissions:"
+        grep -A 10 '"permissions"' manifest.json || echo "No permissions array found"
+
+        # Check host permissions
+        echo "🌐 Host permissions:"
+        grep -A 10 '"host_permissions"' manifest.json || echo "No host_permissions array found"
+
+        echo "🔍 Security scan completed"

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grocery AutoClip</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🛒</span>
+                <span class="logo-text">Grocery AutoClip</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-section">
+                <!-- Stats and Actions -->
+                <div class="top-section">
+                    <!-- Status Messages -->
+                    <div id="statusMessages"></div>
+
+                    <!-- Progress when clipping -->
+                    <div class="inline-progress" id="inlineProgress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <span class="progress-counter" id="clippingCounter">0 / 0</span>
+                    </div>
+                </div>
+                
+                <!-- Search and Filters -->
+                <div class="search-section">
+                    <div class="search-header">
+                        <input type="text" class="search-input" id="searchInput" placeholder="Search your coupons..." />
+                        <div class="header-right">
+                            <div class="refresh-area">
+                                <button class="smart-btn" id="smartActionBtn" title="Refresh">
+                                    <span id="smartIcon">🔄</span>
+                                    <span id="smartText">Refresh</span>
+                                </button>
+                                <span class="last-updated" id="lastUpdated">Never</span>
+                            </div>
+                            <button class="icon-btn" id="clearDataBtn" title="Clear All Data">
+                                <span>🗑️</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="filters-row">
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">All Categories</option>
+                        </select>
+                        <select class="form-select" id="sortFilter">
+                            <option value="expiry">By Expiry Date</option>
+                            <option value="recent">Most Recently Clipped</option>
+                            <option value="alphabetical">A-Z</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Pagination Controls (Top) -->
+                <div class="pagination-container pagination-top" id="paginationContainer" style="display: none;">
+                    <div class="pagination-info">
+                        <span id="paginationInfo">Page 1 of 1</span>
+                    </div>
+                    <div class="pagination-controls">
+                        <button class="pagination-btn" id="prevPageBtn" disabled>‹ Prev</button>
+                        <div class="page-numbers" id="pageNumbers"></div>
+                        <button class="pagination-btn" id="nextPageBtn" disabled>Next ›</button>
+                    </div>
+                </div>
+
+                <!-- My Coupons List -->
+                <div class="coupon-table" id="myCouponsList">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎫</div>
+                        <div class="empty-state-title">No clipped coupons</div>
+                        <div class="empty-state-text">Start clipping coupons to see them here</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">Loading...</div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="dist/utils.js"></script>
+    <script src="dist/popup.js"></script>
+</body>
+</html>
