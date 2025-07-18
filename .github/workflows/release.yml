@@ -66,50 +66,11 @@ jobs:
     - name: Generate changelog
       id: changelog
       run: |
-        # Generate simple changelog
-        CHANGELOG="- Migrated to TypeScript for better code quality and maintainability
-        - Improved build process with esbuild compilation
-        - Enhanced CI workflows and quality checks
-        - Ready for Chrome Web Store submission"
-        
-        # Save changelog to file for the release
+        # Simple release notes
         cat > RELEASE_NOTES.md << EOF
-        ## 🚀 Safeway Coupon Clipper v${{ steps.version.outputs.tag_version }}
+        Chrome extension for automatically clipping Safeway digital coupons.
         
-        ### 📦 Downloads
-        - **Chrome Web Store Package**: Ready for direct upload to Chrome Web Store
-        
-        ### 🛠️ Installation Instructions
-        1. Download the \`.zip\` file below
-        2. Extract the contents to a folder
-        3. Open Chrome and go to \`chrome://extensions/\`
-        4. Enable "Developer mode" in the top right
-        5. Click "Load unpacked" and select the extracted folder
-        
-        ### 📋 Chrome Web Store Submission
-        The attached package is ready for direct upload to the Chrome Web Store Developer Dashboard.
-        
-        ### 📝 What's Changed
-        $CHANGELOG
-        
-        ### ✅ Package Contents
-        - \`manifest.json\` - Extension manifest (v3)
-        - \`background.js\` - Service worker for background processing
-        - \`content.js\` - Content script for Safeway.com integration
-        - \`popup.html/css/js\` - Modern extension popup interface
-        - \`icon16.png\`, \`icon48.png\`, \`icon128.png\` - Extension icons (all sizes)
-        - \`PRIVACY_POLICY.md\` - Privacy policy documentation
-        
-        ### 🔧 Technical Details
-        - **Manifest Version**: 3 (latest Chrome extension standard)
-        - **Minimum Chrome Version**: 88
-        - **Permissions**: activeTab, storage, scripting
-        - **Host Permissions**: safeway.com, albertsons-media.com
-        
-        ---
-        
-        🤖 This release was automatically built and packaged by GitHub Actions.
-        🛡️ All packages are scanned for security issues before release.
+        Download the zip file and load it as an unpacked extension in Chrome.
         EOF
         
     - name: Create GitHub Release
@@ -118,7 +79,7 @@ jobs:
         files: |
           builds/grocery-autoclip-v${{ steps.version.outputs.tag_version }}-webstore.zip
         body_path: RELEASE_NOTES.md
-        name: "Safeway Coupon Clipper v${{ steps.version.outputs.tag_version }}"
+        name: "v${{ steps.version.outputs.tag_version }}"
         draft: false
         prerelease: false
         generate_release_notes: false  # We're providing our own notes
