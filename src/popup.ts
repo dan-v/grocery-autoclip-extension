@@ -115,9 +115,7 @@ class GroceryAutoClipApp {
                     this.loadMyCouponsData();
                 } else {
                     this.stopBackgroundProgressMonitoring();
-                    await this.loadStoredData();
-                    await this.updateDashboardStats();
-                    this.finishClipping();
+                    await this.finishClipping();
                 }
             } catch {
                 this.stopBackgroundProgressMonitoring();
@@ -516,6 +514,9 @@ class GroceryAutoClipApp {
             finalStats: this.clippingStats
         });
         
+        // immediately refresh offers data to get updated coupon statuses
+        await this.loadDashboardData(true);
+        
         // wait a bit for final storage updates, then do comprehensive refresh
         setTimeout(async () => {
             await this.loadStoredData();
@@ -524,14 +525,6 @@ class GroceryAutoClipApp {
             await this.updateDashboardStats();
             
             this.loadMyCouponsData();
-            
-            // force one more refresh after a short delay to catch any final updates
-            setTimeout(async () => {
-                await this.loadStoredData();
-                await this.updateDashboardStats();
-                this.updateSmartActionButton();
-                this.loadMyCouponsData();
-            }, 2000);
         }, 1000);
     }
 
