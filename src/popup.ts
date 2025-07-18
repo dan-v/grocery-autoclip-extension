@@ -66,9 +66,15 @@ class GroceryAutoClipApp {
         await this.loadStoredData();
         this.setupEventListeners();
         
+        // show initial loading state for coupons list
         this.loadMyCouponsData();
         
+        // load dashboard data which will discover already-clipped coupons
         await this.loadDashboardData();
+        
+        // reload coupon list now that we have complete data
+        this.loadMyCouponsData();
+        
         await this.checkBackgroundClippingState();
     }
 
