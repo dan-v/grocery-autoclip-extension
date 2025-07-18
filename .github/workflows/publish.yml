@@ -23,28 +23,22 @@ jobs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
         echo "Extension version: $VERSION"
         
-    - name: Build extension
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build TypeScript
+      run: npm run build
+
+    - name: Build extension package
       run: |
-        mkdir -p temp-build
-        mkdir -p builds
-        
-        # Copy extension files
-        cp manifest.json temp-build/
-        cp content.js temp-build/
-        cp background.js temp-build/
-        
-        # Copy icons if they exist
-        [ -f icon16.png ] && cp icon16.png temp-build/
-        [ -f icon48.png ] && cp icon48.png temp-build/
-        [ -f icon128.png ] && cp icon128.png temp-build/
-        
-        # Create zip file in builds directory
-        cd temp-build
-        zip -r ../builds/safeway-coupon-clipper-v${{ steps.version.outputs.version }}.zip .
-        cd ..
-        
-        # Clean up temp directory
-        rm -rf temp-build
+        chmod +x scripts/build-webstore.sh
+        scripts/build-webstore.sh
         
         echo "Build complete!"
         ls -la builds/
@@ -53,7 +47,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: extension-build
-        path: "builds/*.zip"
+        path: "builds/grocery-autoclip-v${{ steps.version.outputs.version }}-webstore.zip"
         
     - name: Create GitHub Release
       if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
@@ -74,7 +68,7 @@ jobs:
           5. Click "Load unpacked" and select the extracted folder
           
         files: |
-          builds/*.zip
+          builds/grocery-autoclip-v${{ steps.version.outputs.version }}-webstore.zip
         draft: false
         prerelease: false
       env:

@@ -1,0 +1,197 @@
+name: Validate Extension
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'src/**.ts'
+      - '**.html'
+      - '**.css'
+      - 'manifest.json'
+      - 'package.json'
+      - 'tsconfig.json'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'src/**.ts'
+      - '**.html'
+      - '**.css'
+      - 'manifest.json'
+      - 'package.json'
+      - 'tsconfig.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build TypeScript
+      run: npm run build
+
+    - name: Install validation tools
+      run: |
+        npm install -g web-ext jshint htmlhint
+
+    - name: Validate manifest.json
+      run: |
+        echo "🔍 Validating manifest.json..."
+
+        # Check JSON syntax
+        if ! python3 -m json.tool manifest.json > /dev/null; then
+          echo "❌ Invalid JSON syntax in manifest.json"
+          exit 1
+        fi
+
+        # Check manifest version
+        MANIFEST_VERSION=$(grep '"manifest_version"' manifest.json | sed 's/.*"manifest_version": \([0-9]*\).*/\1/')
+        if [ "$MANIFEST_VERSION" != "3" ]; then
+          echo "❌ Extension must use Manifest V3 (current: $MANIFEST_VERSION)"
+          exit 1
+        fi
+
+        # Check required fields
+        REQUIRED_FIELDS=("name" "version" "description" "manifest_version")
+        for field in "${REQUIRED_FIELDS[@]}"; do
+          if ! grep -q "\"$field\"" manifest.json; then
+            echo "❌ Required field missing: $field"
+            exit 1
+          fi
+        done
+
+        echo "✅ manifest.json validation passed"
+
+    - name: Validate JavaScript files
+      run: |
+        echo "🔍 Validating JavaScript files..."
+
+        # Run TypeScript linting
+        npm run lint || echo "⚠️  TypeScript linting warnings found"
+
+        # Check for common Chrome extension issues
+        echo "🔍 Checking for Chrome extension best practices..."
+
+        # Check for chrome.* API usage in content scripts
+        if grep -q "chrome\." dist/content.js 2>/dev/null; then
+          echo "⚠️  Direct chrome.* API usage in content.js detected"
+          echo "Consider using message passing to background script"
+        fi
+
+        # Check for proper error handling
+        if ! grep -q "chrome.runtime.lastError\|try.*catch" dist/background.js 2>/dev/null; then
+          echo "⚠️  Consider adding error handling in background.js"
+        fi
+
+        echo "✅ JavaScript validation completed"
+
+    - name: Validate HTML files
+      run: |
+        echo "🔍 Validating HTML files..."
+
+        for html_file in *.html; do
+          if [ -f "$html_file" ]; then
+            echo "Checking $html_file..."
+            htmlhint "$html_file" || echo "⚠️  HTMLHint warnings in $html_file"
+          fi
+        done
+
+        echo "✅ HTML validation completed"
+
+    - name: Check file structure
+      run: |
+        echo "🔍 Checking extension file structure..."
+
+        # Check for required files (after build)
+        REQUIRED_FILES=("manifest.json" "dist/background.js" "dist/content.js" "dist/popup.js")
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ ! -f "$file" ]; then
+            echo "❌ Required file missing: $file"
+            exit 1
+          fi
+        done
+
+        # Check icon files
+        ICON_SIZES=(16 48 128)
+        for size in "${ICON_SIZES[@]}"; do
+          if [ ! -f "icon${size}.png" ]; then
+            echo "❌ Required icon missing: icon${size}.png"
+            exit 1
+          fi
+        done
+
+        # Check popup files if defined in manifest
+        if grep -q "default_popup" manifest.json; then
+          POPUP_HTML=$(grep '"default_popup"' manifest.json | sed 's/.*"default_popup": "\([^"]*\)".*/\1/')
+          if [ ! -f "$POPUP_HTML" ]; then
+            echo "❌ Popup HTML file missing: $POPUP_HTML"
+            exit 1
+          fi
+        fi
+
+        echo "✅ File structure validation passed"
+
+    - name: Size and performance check
+      run: |
+        echo "📊 Checking extension size and performance..."
+
+        # Calculate total size (include dist files)
+        TOTAL_SIZE=$(find . -path "./node_modules" -prune -o -name "*.js" -o -name "*.html" -o -name "*.css" -o -name "*.png" -o -name "manifest.json" | grep -v node_modules | xargs du -bc | tail -1 | cut -f1)
+        TOTAL_SIZE_MB=$((TOTAL_SIZE / 1024 / 1024))
+
+        echo "📦 Total extension size: ${TOTAL_SIZE} bytes (~${TOTAL_SIZE_MB}MB)"
+
+        # Check against Chrome Web Store size limits
+        if [ $TOTAL_SIZE -gt 134217728 ]; then  # 128MB
+          echo "❌ Extension size exceeds Chrome Web Store limit (128MB)"
+          exit 1
+        elif [ $TOTAL_SIZE -gt 52428800 ]; then  # 50MB
+          echo "⚠️  Extension size is large (>50MB), consider optimization"
+        fi
+
+        # Check individual file sizes
+        for js_file in dist/*.js; do
+          if [ -f "$js_file" ]; then
+            SIZE=$(stat -f%z "$js_file" 2>/dev/null || stat -c%s "$js_file")
+            if [ $SIZE -gt 1048576 ]; then  # 1MB
+              echo "⚠️  Large JavaScript file: $js_file ($(($SIZE / 1024))KB)"
+            fi
+          fi
+        done
+
+        echo "✅ Size and performance check completed"
+
+  web-ext-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Install web-ext
+      run: npm install -g web-ext
+
+    - name: Run web-ext lint
+      run: |
+        echo "🔍 Running web-ext lint..."
+        web-ext lint --pretty --output-format text || {
+          echo "⚠️  web-ext lint found issues"
+          echo "These may be warnings that don't prevent submission"
+          exit 0
+        }
+        echo "✅ web-ext lint passed"

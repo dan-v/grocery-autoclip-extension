@@ -1,27 +1,30 @@
 {
   "manifest_version": 3,
-  "name": "Safeway Coupon Clipper",
-  "version": "1.0.0",
-  "description": "Automatically clip all available Safeway coupons",
+  "name": "Grocery AutoClip",
+  "version": "2.1.2",
+  "description": "Automatically clip digital coupons from Safeway.com to save money on groceries.",
   "permissions": [
     "activeTab",
     "storage",
-    "notifications"
+    "scripting"
   ],
   "host_permissions": [
-    "https://*.safeway.com/*"
+    "https://*.safeway.com/*",
+    "https://*.albertsons-media.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "dist/background.js"
   },
   "content_scripts": [
     {
       "matches": ["https://*.safeway.com/*"],
-      "js": ["content.js"],
+      "js": ["dist/utils.js", "dist/content.js"],
       "run_at": "document_idle"
     }
   ],
   "action": {
+    "default_popup": "popup.html",
+    "default_title": "Grocery AutoClip",
     "default_icon": {
       "16": "icon16.png",
       "48": "icon48.png",
@@ -32,5 +35,9 @@
     "16": "icon16.png",
     "48": "icon48.png",
     "128": "icon128.png"
+  },
+  "minimum_chrome_version": "88",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
   }
 }
