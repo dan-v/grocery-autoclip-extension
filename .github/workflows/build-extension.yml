@@ -108,7 +108,7 @@ jobs:
         echo "📦 Package size: $(ls -lh "$BUILD_FILE" | awk '{print $5}')"
 
     - name: Upload build artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: chrome-extension-webstore-v${{ steps.version.outputs.version }}
         path: builds/${{ env.EXTENSION_NAME }}-v${{ steps.version.outputs.version }}-webstore.zip
@@ -116,7 +116,7 @@ jobs:
 
     - name: Upload build artifact (development)
       if: github.event_name != 'release'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: chrome-extension-dev-build
         path: builds/${{ env.EXTENSION_NAME }}-v${{ steps.version.outputs.version }}-webstore.zip
